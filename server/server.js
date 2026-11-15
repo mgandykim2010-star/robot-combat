@@ -81,10 +81,11 @@ io.on("connection", socket => {
       if (typeof ack === "function") ack({ ok: false, error: "방이 가득 찼습니다. (최대 10명)" });
       return;
     }
+    if (room.size === 0) room.host = socket.id;
     room.set(socket.id, {});
     socket.data.roomCode = code;
     socket.join(code);
-    if (typeof ack === "function") ack({ ok: true, peer: socket.id, peers: roomPeers(code) });
+    if (typeof ack === "function") ack({ ok: true, peer: socket.id, host: room.host === socket.id, peers: roomPeers(code) });
     publishPeers(code);
   });
 
@@ -100,7 +101,8 @@ io.on("connection", socket => {
     const code = socket.data.roomCode;
     if (!code || !rooms.has(code) || !message || typeof message.event !== "string") return;
     const allowed = new Set(["go", "goTeam", "st", "teamSt"]);
-    if (!allowed.has(message.event)) return;
+    const room = rooms.get(code);
+    if (!allowed.has(message.event) || !room || room.host !== socket.id) return;
     socket.to(code).emit("room:event", {
       event: message.event,
       peer: socket.id,
