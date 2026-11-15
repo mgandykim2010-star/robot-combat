@@ -97,6 +97,7 @@ table{width:100%;border-collapse:collapse;background:var(--pn);border:1px solid 
 </div></div>
 <canvas id="cv"></canvas><button id="sk" style="position:fixed;left:14px;bottom:14px;z-index:3;display:none;font-size:13px;padding:7px 11px;background:rgba(10,22,34,.85);color:#e6f7ff;border:1px solid #00f0d8">결과 보기 · 나가기</button>
 <div id="end"><div><h2 id="et"></h2><p id="es" style="color:var(--mu)"></p><p id="ep" style="color:var(--ac)"></p><div class="row" style="justify-content:center"><button id="rt">다시 도전</button><button id="bk">로비로</button></div></div></div>
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
 <script>
 const $=i=>document.getElementById(i),U=24,TAU=Math.PI*2;
 const B={ASSASSIN:{bat:1000,atk:110,as:1.25,spd:6,def:.08,rng:14,en:100,rg:6,ultCost:65,cost:11,c:'#ff5d73',d:'기동형 암살자'},
@@ -547,12 +548,38 @@ if(P.alive){const c=pin();P.ang=c.a;if(c.u)UL=T+.15;const k=[c.mx,c.my,Math.roun
 function publishRoomPresence(){if(!ROOM)return;ROOM.presence({n:NAME,c:sel,l:LV[sel],h:isHost?1:0,tm:Number(MYTEAM)===1?1:0})}
 function chooseMyTeam(team){MYTEAM=Number(team)===1?1:0;publishRoomPresence();lob()}
 function lob(){if(!ROOM)return;const ps=ROOM.peers().filter(p=>p.presence.n),mine=ps.find(p=>p.isMe&&p.sameTab);$('rml').innerHTML=`<p>방 코드 <b style='font-size:24px;letter-spacing:.25em;color:var(--ac)'>${esc(CODE.toUpperCase())}</b> <button id='copyRoomCode' style='padding:4px 9px;font-size:12px'>코드 복사</button> · 접속 ${ps.length}/10명</p><p style="margin:8px 0;color:#b4c9dc">팀 전투에 참가할 팀을 직접 선택하세요. 각 팀 최대 5명이며, 남은 자리는 AI가 채웁니다.</p><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button id="chooseBlue" style="background:${MYTEAM===0?'#235b8c':'#203040'};color:#fff;border:1px solid #4c9aff">블루 팀 선택</button><button id="chooseRed" style="background:${MYTEAM===1?'#9b3545':'#203040'};color:#fff;border:1px solid #ff667a">레드 팀 선택</button></div>`+ps.map(p=>`<div style="padding:5px 7px;border-bottom:1px solid #294052"><b>${p.isMe?'▶ ':''}${esc(p.presence.n)}</b> · ${esc(p.presence.c)} ${+p.presence.l||1}단계 · <b style="color:${+p.presence.tm===1?'#ff8290':'#83c7ff'}">${+p.presence.tm===1?'레드 팀':'블루 팀'}</b>${p.presence.h?' · 방장':''}</div>`).join('')+(isHost?`<div style='display:flex;gap:8px;flex-wrap:wrap;margin-top:10px'><button id='rms' style='background:#235b8c;color:#fff;border:0;font-weight:700'>쇼다운 시작</button><button id='rmt' style='background:#b77724;color:#fff;border:0;font-weight:700'>팀 전투 시작</button></div>`:`<p>방장이 전투 모드를 선택하기를 기다리는 중...</p>`);const cp=$('copyRoomCode');if(cp)cp.onclick=()=>{if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(CODE.toUpperCase()).then(()=>cp.textContent='복사 완료').catch(()=>prompt('친구에게 공유할 방 코드',CODE.toUpperCase()));else prompt('친구에게 공유할 방 코드',CODE.toUpperCase())};$('chooseBlue').onclick=()=>chooseMyTeam(0);$('chooseRed').onclick=()=>chooseMyTeam(1);if(isHost){$('rms').onclick=hostGo;$('rmt').onclick=hostGoTeam}}
-async function mkRoom(code,host){const ms=$('rmg');let rm=null;try{rm=window.claude?await claude.use('room'):null}catch(e){}
-if(!rm){ms.textContent='온라인 방 서버에 연결되지 않았습니다. 다운로드한 HTML을 Chrome에서 직접 열면 방 생성·참가가 작동하지 않습니다. 친구와 온라인으로 플레이하려면 실시간 방 서버를 연결해 웹에 배포해야 합니다. 현재는 게임 시작 → BASE DESTRUCTION으로 오프라인 5대5를 플레이할 수 있습니다.';return}
-try{ROOM=await rm.join('cc-'+code)}catch(e){ms.textContent='입장 실패: 코드를 확인하세요.';return}
-ms.textContent='';CODE=code;isHost=host?1:0;publishRoomPresence();ROOM.onPeers(lob);ROOM.on('st',onSt);ROOM.on('teamSt',receiveTeamState);
-ROOM.on('goTeam',m=>{if(m.isMe||isHost||!Array.isArray(m.data))return;HOSTP=m.peer;MYP=ROOM.peers().find(p=>p.isMe&&p.sameTab).peer;RO=m.data.slice(0,10).map(q=>({n:String(q.n||'AI').slice(0,12),c:B[q.c]?q.c:'ASSASSIN',l:Math.max(1,Math.min(5,q.l|0||1)),p:String(q.p||''),team:q.team===1?1:0}));MP=1;startTeam(RO)});
-ROOM.on('go',m=>{if(m.isMe||isHost||!Array.isArray(m.data))return;HOSTP=m.peer;MYP=ROOM.peers().find(p=>p.isMe&&p.sameTab).peer;RO=m.data.slice(0,10).map(q=>({n:String(q.n||'AI').slice(0,12),c:B[q.c]?q.c:'ASSASSIN',l:Math.max(1,Math.min(5,q.l|0||1)),p:String(q.p||'')}));MP=1;start()});lob()}
+const RB_SERVER_URL = "https://YOUR-RENDER-SERVICE.onrender.com";
+class RealtimeRoom {
+  constructor(socket, code, peer, initialPeers) {
+    this.socket=socket;this.code=code;this.peer=peer;this._peers=[];this._handlers=new Map();this._peerHandlers=[];this._presence={};
+    this._setPeers(initialPeers||[]);
+    socket.on("room:peers",list=>{this._setPeers(list||[]);this._notifyPeers()});
+    socket.on("room:peer-presence",item=>{const p=this._peers.find(x=>x.peer===item.peer);if(p)p.presence={...p.presence,...(item.presence||{})};else this._peers.push({peer:item.peer,presence:item.presence||{},isMe:false,sameTab:false});this._notifyPeers()});
+    socket.on("room:event",msg=>{if(!msg||typeof msg.event!=="string")return;for(const fn of this._handlers.get(msg.event)||[])fn({peer:msg.peer,data:msg.data,isMe:false})});
+  }
+  _setPeers(list){this._peers=list.map(p=>({peer:p.peer,presence:p.presence||{},isMe:p.peer===this.peer,sameTab:p.peer===this.peer}));if(!this._peers.some(p=>p.isMe))this._peers.push({peer:this.peer,presence:this._presence,isMe:true,sameTab:true})}
+  _notifyPeers(){for(const fn of this._peerHandlers)fn()}
+  peers(){return this._peers.slice()}
+  presence(patch){this._presence={...this._presence,...(patch||{})};const mine=this._peers.find(p=>p.isMe);if(mine)mine.presence=this._presence;this.socket.emit("room:presence",patch||{});this._notifyPeers()}
+  onPeers(fn){this._peerHandlers.push(fn);fn()}
+  on(event,fn){if(!this._handlers.has(event))this._handlers.set(event,[]);this._handlers.get(event).push(fn)}
+  emit(event,data){if(!this.socket.connected)return Promise.reject(new Error("서버 연결이 끊어졌습니다."));this.socket.emit("room:message",{event,data});return Promise.resolve({ok:true})}
+}
+async function connectRealtimeRoom(code){
+  if(!window.io)throw new Error("Socket.IO 클라이언트를 불러오지 못했습니다. 페이지를 새로고침해 주세요.");
+  if(RB_SERVER_URL.includes("YOUR-RENDER-SERVICE"))throw new Error("온라인 서버 주소가 아직 설정되지 않았습니다. Render에 서버를 배포한 뒤 게임에 실제 서버 주소를 설정해야 합니다.");
+  const socket=window.io(RB_SERVER_URL,{transports:["websocket","polling"],reconnection:true,timeout:12000});
+  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{socket.disconnect();reject(new Error("서버 연결 시간이 초과되었습니다."))},15000);socket.once("connect",()=>{clearTimeout(timer);resolve()});socket.once("connect_error",err=>{clearTimeout(timer);socket.disconnect();reject(new Error("서버에 연결할 수 없습니다: "+(err.message||"연결 오류")))})});
+  const result=await new Promise((resolve,reject)=>{socket.emit("room:join",{code},answer=>answer&&answer.ok?resolve(answer):reject(new Error(answer&&answer.error||"방 입장에 실패했습니다.")))});
+  return new RealtimeRoom(socket,code,result.peer,result.peers)
+}
+async function mkRoom(code,host){
+ const ms=$('rmg');ms.textContent='온라인 서버에 연결하는 중...';
+ try{ROOM=await connectRealtimeRoom(code)}catch(e){ms.textContent=e.message;return}
+ ms.textContent='';CODE=code;isHost=host?1:0;publishRoomPresence();ROOM.onPeers(lob);ROOM.on('st',onSt);ROOM.on('teamSt',receiveTeamState);
+ ROOM.on('goTeam',m=>{if(m.isMe||isHost||!Array.isArray(m.data))return;HOSTP=m.peer;MYP=ROOM.peers().find(p=>p.isMe).peer;RO=m.data.slice(0,10).map(q=>({n:String(q.n||'AI').slice(0,12),c:B[q.c]?q.c:'ASSASSIN',l:Math.max(1,Math.min(5,q.l|0||1)),p:String(q.p||''),team:q.team===1?1:0}));MP=1;startTeam(RO)});
+ ROOM.on('go',m=>{if(m.isMe||isHost||!Array.isArray(m.data))return;HOSTP=m.peer;MYP=ROOM.peers().find(p=>p.isMe).peer;RO=m.data.slice(0,10).map(q=>({n:String(q.n||'AI').slice(0,12),c:B[q.c]?q.c:'ASSASSIN',l:Math.max(1,Math.min(5,q.l|0||1)),p:String(q.p||'')}));MP=1;start()});lob()
+}
 function hostGo(){const ks=Object.keys(B),an=AN0.slice().sort(()=>Math.random()-.5),hs=ROOM.peers().filter(p=>p.presence.n).slice(0,10);
 const ro=hs.map(p=>({n:String(p.presence.n).slice(0,12),c:B[p.presence.c]?p.presence.c:'ASSASSIN',l:Math.max(1,Math.min(5,p.presence.l|0||1)),p:p.peer}));let k=0;while(ro.length<10)ro.push({n:an[k++],c:ks[Math.random()*4|0],l:1+(Math.random()*5|0),p:''});
 MYP=ROOM.peers().find(p=>p.isMe&&p.sameTab).peer;RO=ro;MP=1;isHost=1;ROOM.emit('go',ro);start()}
