@@ -58,7 +58,13 @@ function removeFromRoom(socket) {
   if (room) {
     room.delete(socket.id);
     if (room.size === 0) rooms.delete(code);
-    else publishPeers(code);
+    else {
+      if (room.host === socket.id) {
+        room.host = room.keys().next().value;
+        io.to(code).emit("room:host", room.host);
+      }
+      publishPeers(code);
+    }
   }
   socket.leave(code);
   socket.data.roomCode = null;
