@@ -551,10 +551,11 @@ function lob(){if(!ROOM)return;const ps=ROOM.peers().filter(p=>p.presence.n),min
 const RB_SERVER_URL = "https://YOUR-RENDER-SERVICE.onrender.com";
 class RealtimeRoom {
   constructor(socket, code, peer, initialPeers) {
-    this.socket=socket;this.code=code;this.peer=peer;this.isHost=false;this._peers=[];this._handlers=new Map();this._peerHandlers=[];this._presence={};
+    this.socket=socket;this.code=code;this.peer=peer;this.isHost=false;this._peers=[];this._handlers=new Map();this._peerHandlers=[];this._presence={};this._hostHandlers=[];
     this._setPeers(initialPeers||[]);
     socket.on("room:peers",list=>{this._setPeers(list||[]);this._notifyPeers()});
     socket.on("room:peer-presence",item=>{const p=this._peers.find(x=>x.peer===item.peer);if(p)p.presence={...p.presence,...(item.presence||{})};else this._peers.push({peer:item.peer,presence:item.presence||{},isMe:false,sameTab:false});this._notifyPeers()});
+    socket.on("room:host",peer=>{this.isHost=peer===this.peer;for(const fn of this._hostHandlers)fn(this.isHost)});
     socket.on("room:event",msg=>{if(!msg||typeof msg.event!=="string")return;for(const fn of this._handlers.get(msg.event)||[])fn({peer:msg.peer,data:msg.data,isMe:false})});
   }
   _setPeers(list){this._peers=list.map(p=>({peer:p.peer,presence:p.presence||{},isMe:p.peer===this.peer,sameTab:p.peer===this.peer}));if(!this._peers.some(p=>p.isMe))this._peers.push({peer:this.peer,presence:this._presence,isMe:true,sameTab:true})}
@@ -563,6 +564,7 @@ class RealtimeRoom {
   presence(patch){this._presence={...this._presence,...(patch||{})};const mine=this._peers.find(p=>p.isMe);if(mine)mine.presence=this._presence;this.socket.emit("room:presence",patch||{});this._notifyPeers()}
   onPeers(fn){this._peerHandlers.push(fn);fn()}
   on(event,fn){if(!this._handlers.has(event))this._handlers.set(event,[]);this._handlers.get(event).push(fn)}
+  onHost(fn){this._hostHandlers.push(fn);fn(this.isHost)}
   emit(event,data){if(!this.socket.connected)return Promise.reject(new Error("서버 연결이 끊어졌습니다."));this.socket.emit("room:message",{event,data});return Promise.resolve({ok:true})}
 }
 async function connectRealtimeRoom(code){
@@ -576,7 +578,7 @@ async function connectRealtimeRoom(code){
 async function mkRoom(code,host){
  const ms=$('rmg');ms.textContent='온라인 서버에 연결하는 중...';
  try{ROOM=await connectRealtimeRoom(code)}catch(e){ms.textContent=e.message;return}
- ms.textContent='';CODE=code;isHost=ROOM.isHost?1:0;publishRoomPresence();ROOM.onPeers(lob);ROOM.on('st',onSt);ROOM.on('teamSt',receiveTeamState);
+ ms.textContent='';CODE=code;isHost=ROOM.isHost?1:0;ROOM.onHost(v=>{isHost=v?1:0;publishRoomPresence();lob()});publishRoomPresence();ROOM.onPeers(lob);ROOM.on('st',onSt);ROOM.on('teamSt',receiveTeamState);
  ROOM.on('goTeam',m=>{if(m.isMe||isHost||!Array.isArray(m.data))return;HOSTP=m.peer;MYP=ROOM.peers().find(p=>p.isMe).peer;RO=m.data.slice(0,10).map(q=>({n:String(q.n||'AI').slice(0,12),c:B[q.c]?q.c:'ASSASSIN',l:Math.max(1,Math.min(5,q.l|0||1)),p:String(q.p||''),team:q.team===1?1:0}));MP=1;startTeam(RO)});
  ROOM.on('go',m=>{if(m.isMe||isHost||!Array.isArray(m.data))return;HOSTP=m.peer;MYP=ROOM.peers().find(p=>p.isMe).peer;RO=m.data.slice(0,10).map(q=>({n:String(q.n||'AI').slice(0,12),c:B[q.c]?q.c:'ASSASSIN',l:Math.max(1,Math.min(5,q.l|0||1)),p:String(q.p||'')}));MP=1;start()});lob()
 }
