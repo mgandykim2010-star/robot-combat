@@ -551,7 +551,7 @@ function lob(){if(!ROOM)return;const ps=ROOM.peers().filter(p=>p.presence.n),min
 const RB_SERVER_URL = "https://YOUR-RENDER-SERVICE.onrender.com";
 class RealtimeRoom {
   constructor(socket, code, peer, initialPeers) {
-    this.socket=socket;this.code=code;this.peer=peer;this._peers=[];this._handlers=new Map();this._peerHandlers=[];this._presence={};
+    this.socket=socket;this.code=code;this.peer=peer;this.isHost=false;this._peers=[];this._handlers=new Map();this._peerHandlers=[];this._presence={};
     this._setPeers(initialPeers||[]);
     socket.on("room:peers",list=>{this._setPeers(list||[]);this._notifyPeers()});
     socket.on("room:peer-presence",item=>{const p=this._peers.find(x=>x.peer===item.peer);if(p)p.presence={...p.presence,...(item.presence||{})};else this._peers.push({peer:item.peer,presence:item.presence||{},isMe:false,sameTab:false});this._notifyPeers()});
@@ -571,12 +571,12 @@ async function connectRealtimeRoom(code){
   const socket=window.io(RB_SERVER_URL,{transports:["websocket","polling"],reconnection:true,timeout:12000});
   await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{socket.disconnect();reject(new Error("서버 연결 시간이 초과되었습니다."))},15000);socket.once("connect",()=>{clearTimeout(timer);resolve()});socket.once("connect_error",err=>{clearTimeout(timer);socket.disconnect();reject(new Error("서버에 연결할 수 없습니다: "+(err.message||"연결 오류")))})});
   const result=await new Promise((resolve,reject)=>{socket.emit("room:join",{code},answer=>answer&&answer.ok?resolve(answer):reject(new Error(answer&&answer.error||"방 입장에 실패했습니다.")))});
-  return new RealtimeRoom(socket,code,result.peer,result.peers)
+  const room=new RealtimeRoom(socket,code,result.peer,result.peers);room.isHost=!!result.host;return room
 }
 async function mkRoom(code,host){
  const ms=$('rmg');ms.textContent='온라인 서버에 연결하는 중...';
  try{ROOM=await connectRealtimeRoom(code)}catch(e){ms.textContent=e.message;return}
- ms.textContent='';CODE=code;isHost=host?1:0;publishRoomPresence();ROOM.onPeers(lob);ROOM.on('st',onSt);ROOM.on('teamSt',receiveTeamState);
+ ms.textContent='';CODE=code;isHost=ROOM.isHost?1:0;publishRoomPresence();ROOM.onPeers(lob);ROOM.on('st',onSt);ROOM.on('teamSt',receiveTeamState);
  ROOM.on('goTeam',m=>{if(m.isMe||isHost||!Array.isArray(m.data))return;HOSTP=m.peer;MYP=ROOM.peers().find(p=>p.isMe).peer;RO=m.data.slice(0,10).map(q=>({n:String(q.n||'AI').slice(0,12),c:B[q.c]?q.c:'ASSASSIN',l:Math.max(1,Math.min(5,q.l|0||1)),p:String(q.p||''),team:q.team===1?1:0}));MP=1;startTeam(RO)});
  ROOM.on('go',m=>{if(m.isMe||isHost||!Array.isArray(m.data))return;HOSTP=m.peer;MYP=ROOM.peers().find(p=>p.isMe).peer;RO=m.data.slice(0,10).map(q=>({n:String(q.n||'AI').slice(0,12),c:B[q.c]?q.c:'ASSASSIN',l:Math.max(1,Math.min(5,q.l|0||1)),p:String(q.p||'')}));MP=1;start()});lob()
 }
